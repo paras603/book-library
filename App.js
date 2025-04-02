@@ -12,6 +12,7 @@ import LoginScreen from "./screens/LoginScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import BorrowerDetailScreen from './screens/BorrowerDetailScreen';
+import AddBook from "./screens/AddBookScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -75,6 +76,8 @@ function MainTabs() {
             iconName = focused ? "bookmark" : "bookmark-outline";
           } else if (route.name === "Profile") {
             iconName = focused ? "person" : "person-outline";
+          } else if (route.name === 'Add Book'){
+            iconName = focused ? "add" : "add-outline";
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -92,6 +95,9 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={BookStack} />
+      {auth.currentUser.email === 'admin@gmail.com' && (
+        <Tab.Screen name="Add Book" component={AddBook} />
+      )}
       <Tab.Screen name="Borrowed" component={BorrowedBooksStack} />
       <Tab.Screen name="Profile" component={ProfileScreen}/>
     </Tab.Navigator>
@@ -101,6 +107,8 @@ function MainTabs() {
 // Main App Component
 export default function App() {
   const [user, setUser] = useState(null);
+
+  
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -116,8 +124,8 @@ export default function App() {
           <Stack.Screen name="MainTabs" component={MainTabs} />
         ) : (
           <>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen}/>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen}/>
           </>
         )}
       </Stack.Navigator>

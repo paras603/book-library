@@ -10,7 +10,9 @@ const BorrowerListScreen = () => {
   useEffect(() => {
     const fetchBorrowedBooks = async () => {
       try {
-        const booksQuery = query(collection(db, "books"));
+        const booksQuery = query(collection(db, "books"), where("borrower.returned", "==", false));
+
+
         const booksSnapshot = await getDocs(booksQuery);
 
         if (booksSnapshot.empty) {
@@ -69,9 +71,6 @@ const BorrowerListScreen = () => {
               </Text>
               <Text style={styles.detail}>
                 <Text style={styles.label}>Booked Date:</Text> {item.borrower.borrowedAt ? new Date(item.borrower.borrowedAt).toLocaleDateString() : "N/A"}
-              </Text>
-              <Text style={styles.detail}>
-                <Text style={styles.label}>Returned:</Text> {item.borrower.returned ? "Yes" : "No"}
               </Text>
             </View>
           )}
