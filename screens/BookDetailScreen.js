@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { doc, updateDoc, getDoc, collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { doc, updateDoc, getDoc, query, where, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { auth } from "../firebaseConfig"; // Import auth to get current user
+import { auth } from "../firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
 const BookDetailScreen = () => {
@@ -11,24 +11,59 @@ const BookDetailScreen = () => {
   const route = useRoute();
   const { book } = route.params;
   const [loading, setLoading] = useState(false);
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [bookData, setBookData] = useState(book);
+  const [userDetails, setUserDetails] = useState(null);
 
-  // Check book availability on mount
+  const [userRole, setUserRole] = useState(null);
+
   useEffect(() => {
-    const fetchBookAvailability = async () => {
+    const fetchBookDetails = async () => {
       try {
         const bookRef = doc(db, "books", book.id);
         const bookSnap = await getDoc(bookRef);
         if (bookSnap.exists()) {
-          setIsAvailable(bookSnap.data().available);
+          setBookData(bookSnap.data());
         }
+        
       } catch (error) {
-        console.error("Error checking book availability: ", error);
+        console.error("Error fetching book details: ", error);
         Alert.alert("Error", "Failed to load book details.");
       }
     };
-    fetchBookAvailability();
+    fetchBookDetails();
+
+    const fetchUserDetails = async () => {
+      try {
+        const userEmail = auth.currentUser?.email; // Get the current user's email
+
+        if (!userEmail) {
+          Alert.alert("Error", "User is not logged in.");
+          return;
+        }
+
+        // Query the users collection using the email
+        const q = query(collection(db, "users"), where("email", "==", userEmail));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          console.log("No such document!");
+        } else {
+          querySnapshot.forEach((doc) => {
+            console.log("User role:", doc.data().role);
+            setUserRole(doc.data().role);
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user details: ", error);
+        Alert.alert("Error", "Failed to load user details.");
+      } finally {
+        setLoading(false); // Set loading state to false
+      }
+    }
+
+    fetchUserDetails()
   }, []);
+  
 
   const borrowBook = async () => {
     try {
@@ -38,40 +73,29 @@ const BookDetailScreen = () => {
         Alert.alert("Error", "You must be logged in to borrow books.");
         return;
       }
-      const userUid = user.uid;
 
-      if (!isAvailable) {
+      if (!bookData.available) {
         Alert.alert("Unavailable", "This book is already borrowed.");
         return;
       }
 
-      // Check how many books the user has already borrowed
-      const borrowedBooksQuery = query(
-        collection(db, "borrowers", userUid, "borrowedBooks"),
-        where("returned", "==", false)
-      );
-      const borrowedBooksSnapshot = await getDocs(borrowedBooksQuery);
-      const borrowedBooksCount = borrowedBooksSnapshot.size;
-
-      if (borrowedBooksCount >= 2) {
-        Alert.alert("Limit reached", "You can only borrow 2 books at a time.");
-      } else {
-        // Mark book as unavailable in Firestore
-        const bookRef = doc(db, "books", book.id);
-        await updateDoc(bookRef, { available: false });
-
-        // Add the book to the user's borrowedBooks collection
-        await addDoc(collection(db, "borrowers", userUid, "borrowedBooks"), {
-          title: book.title,
-          author: book.author,
-          returned: false,
+      const bookRef = doc(db, "books", book.id);
+      await updateDoc(bookRef, {
+        available: false,
+        borrower: {
+          bookedBy: user.email,
           borrowedAt: new Date().toISOString(),
-        });
+          returned: false,
+        },
+      });
 
-        Alert.alert("Success", `${book.title} has been borrowed!`);
-        setIsAvailable(false);
-        navigation.navigate("Borrowed");
-      }
+      setBookData({
+        ...bookData,
+        available: false,
+        borrower: { bookedBy: user.email, borrowedAt: new Date().toISOString(), returned: false },
+      });
+      Alert.alert("Success", `${book.title} has been borrowed!`);
+      navigation.navigate("Borrowed");
     } catch (error) {
       console.error("Error borrowing book: ", error);
       Alert.alert("Error", "Failed to borrow the book.");
@@ -80,24 +104,74 @@ const BookDetailScreen = () => {
     }
   };
 
+  const returnBook = async () => {
+    try {
+      setLoading(true);
+      const bookRef = doc(db, "books", book.id);
+      await updateDoc(bookRef, {
+        available: true,
+        "borrower.returned": true,
+      });
+
+      setBookData({
+        ...bookData,
+        available: true,
+        borrower: { ...bookData.borrower, returned: true },
+      });
+      Alert.alert("Success", "Book has been returned.");
+      navigation.navigate("BookList");
+    } catch (error) {
+      console.error("Error returning book: ", error);
+      Alert.alert("Error", "Failed to return the book.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
   return (
     <View style={styles.container}>
       <Ionicons name="book-outline" size={80} color="#4A90E2" style={styles.icon} />
-      <Text style={styles.title}>{book.title}</Text>
-      <Text style={styles.author}>by {book.author}</Text>
-      <Text style={styles.description}>{book.description}</Text>
+      <Text style={styles.title}>{bookData.title}</Text>
+      <Text style={styles.author}>by {bookData.author}</Text>
+      <Text style={styles.description}>{bookData.description}</Text>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#4A90E2" />
-      ) : (
-        <TouchableOpacity
-          style={[styles.button, isAvailable ? styles.buttonAvailable : styles.buttonUnavailable]}
-          onPress={borrowBook}
-          disabled={!isAvailable}
-        >
-          <Text style={styles.buttonText}>{isAvailable ? "Borrow this book" : "Unavailable"}</Text>
-        </TouchableOpacity>
-      )}
+      {!bookData.available && bookData.borrower ? (
+        <View style={styles.borrowerDetails}>
+          <Text style={styles.borrowerText}><Text style={styles.boldText}>Borrowed by:</Text> {bookData.borrower.bookedBy}</Text>
+          <Text style={styles.borrowerText}><Text style={styles.boldText}>Borrowed At:</Text> {new Date(bookData.borrower.borrowedAt).toLocaleDateString()}</Text>
+          <Text style={styles.borrowerText}><Text style={styles.boldText}>Returned:</Text> {bookData.borrower && bookData.borrower.returned ? "Yes" : "No"}</Text>
+        </View>
+      ) : null}
+
+      {/* Always show borrow button unless the book has not been returned */}
+      {bookData.borrower && bookData.borrower.returned === false ? 
+        (
+          <TouchableOpacity
+            style={[styles.button, styles.buttonUnavailable]}
+            disabled={true}
+          >
+            <Text style={styles.buttonText}>Unavailable</Text>
+          </TouchableOpacity>
+        )
+        : (
+          <TouchableOpacity
+            style={[
+              styles.button,
+              bookData.borrower && bookData.borrower.returned === false
+                ? styles.buttonUnavailable
+                : styles.buttonAvailable,
+              { opacity: bookData.borrower && bookData.borrower.returned === false ? 0.5 : 1 }, // Reduce opacity for disabled button
+            ]}
+            onPress={borrowBook}
+            disabled={userRole == 'admin'}
+            pointerEvents={bookData.borrower && bookData.borrower.returned === false ? "none" : "auto"} // Prevent interactions
+          >
+            <Text style={styles.buttonText}>Borrow this book</Text>
+          </TouchableOpacity>
+        )
+      }
     </View>
   );
 };
@@ -132,6 +206,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: "#333",
   },
+  borrowerDetails: {
+    backgroundColor: "#f0f0f0",
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    width: "100%",
+    alignItems: "center",
+  },
+  borrowerText: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 5,
+  },
+  boldText: {
+    fontWeight: "bold",
+    color: "#4A90E2",
+  },
   button: {
     paddingVertical: 12,
     paddingHorizontal: 30,
@@ -144,7 +235,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#4A90E2",
   },
   buttonUnavailable: {
-    backgroundColor: "#ccc",
+    backgroundColor: 'grey',
+  },
+  buttonReturn: {
+    backgroundColor: "#FF5733",
   },
   buttonText: {
     fontSize: 18,

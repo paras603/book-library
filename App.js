@@ -11,6 +11,7 @@ import { auth } from "./firebaseConfig";
 import LoginScreen from "./screens/LoginScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import RegisterScreen from "./screens/RegisterScreen";
+import BorrowerDetailScreen from './screens/BorrowerDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -29,6 +30,11 @@ function BookStack() {
         component={BookDetailScreen}
         options={{ title: "Book Details" }}
       />
+      <Stack.Screen
+        name="BorrowerDetail"
+        component={BorrowerDetailScreen}
+        options={{ title: "Borrower Details" }}
+      />
     </Stack.Navigator>
   );
 }
@@ -37,14 +43,23 @@ function BookStack() {
 function BorrowedBooksStack() {
   return (
     <Stack.Navigator>
-      <Stack.Screen
-        name="BorrowedBooks"
-        component={BorrowedBooksScreen}
-        options={{ title: "My Borrowed Books" }}
-      />
+      {auth.currentUser?.email === "admin@gmail.com" ? (
+        <Stack.Screen
+          name="BorrowDetails"
+          component={BorrowerDetailScreen}
+          options={{ title: "Borrow Details" }}
+        />
+      ) : (
+        <Stack.Screen
+          name="BorrowedBooks"
+          component={BorrowedBooksScreen}
+          options={{ title: "My Borrowed Books" }}
+        />
+      )}
     </Stack.Navigator>
   );
 }
+
 
 // Tab Navigator for main app
 function MainTabs() {

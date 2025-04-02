@@ -8,11 +8,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { collection, getDocs, updateDoc, doc, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { getAuth } from "firebase/auth"; // Import Firebase Auth
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { getAuth } from "firebase/auth"; // Import Firebase Auth
 
 const BorrowedBooksScreen = () => {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
@@ -28,12 +28,24 @@ const BorrowedBooksScreen = () => {
     }
     try {
       setLoading(true);
-      const borrowedBooksQuery = query(
-        collection(db, `borrowers/${user.uid}/borrowedBooks`),
-        where("returned", "==", false)
+      // Query books collection and filter where 'borrower.returned' is false
+      const booksQuery = query(
+        collection(db, "books"),
+        where("borrower.returned", "==", false), // Only books that have not been returned
+        where("borrower.bookedBy", "==", user.email) // Filter books borrowed by the logged-in user
       );
-      const querySnapshot = await getDocs(borrowedBooksQuery);
-      const books = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const querySnapshot = await getDocs(booksQuery);
+      
+      const books = querySnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          author: data.author,
+          borrowedAt: data.borrower.borrowedAt,
+        };
+      });
+      
       setBorrowedBooks(books);
     } catch (error) {
       console.error("Error fetching borrowed books: ", error);
@@ -47,9 +59,10 @@ const BorrowedBooksScreen = () => {
   const returnBook = async (borrowedBook) => {
     try {
       if (!user) return;
-      const borrowedBookRef = doc(db, `borrowers/${user.uid}/borrowedBooks`, borrowedBook.id);
-      await updateDoc(borrowedBookRef, { returned: true });
+      const borrowedBookRef = doc(db, "books", borrowedBook.id);
+      await updateDoc(borrowedBookRef, { "borrower.returned": true });
 
+      // Find and update the availability of the book in the books collection
       const booksQuerySnapshot = await getDocs(collection(db, "books"));
       const bookDoc = booksQuerySnapshot.docs.find((doc) => doc.data().title === borrowedBook.title);
 
@@ -89,6 +102,7 @@ const BorrowedBooksScreen = () => {
               <View style={styles.bookDetails}>
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.author}>by {item.author}</Text>
+                <Text style={styles.borrowedAt}>Borrowed At: {new Date(item.borrowedAt).toLocaleDateString()}</Text>
               </View>
               <TouchableOpacity
                 style={styles.returnButton}
@@ -150,6 +164,16 @@ const styles = StyleSheet.create({
   author: {
     fontSize: 16,
     color: "#555",
+  },
+  description: {
+    fontSize: 14,
+    color: "#777",
+    marginTop: 5,
+  },
+  borrowedAt: {
+    fontSize: 14,
+    color: "#777",
+    marginTop: 5,
   },
   returnButton: {
     backgroundColor: "#4A90E2",

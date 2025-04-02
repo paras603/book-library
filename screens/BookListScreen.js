@@ -7,13 +7,31 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
+import { getAuth } from "firebase/auth";
 
 const BookListScreen = ({ navigation }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
+
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  // Fetch user role from Firestore
+  useEffect(() => {
+    if (currentUser) {
+      const userDocRef = doc(db, "users", currentUser.uid);
+
+      getDoc(userDocRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          setUserRole(docSnap.data().role); // Store role in state
+        }
+      });
+    }
+  }, [currentUser]);
 
   // Fetch books in real-time using Firestore's onSnapshot
   useEffect(() => {
@@ -29,9 +47,13 @@ const BookListScreen = ({ navigation }) => {
       setLoading(false);
     });
 
-    // Cleanup listener when component unmounts
     return () => unsubscribe();
   }, []);
+
+  // Function to handle book press
+  const handleBookPress = (book) => {
+      navigation.navigate("BookDetail", { book });
+  };
 
   return (
     <View style={styles.container}>
@@ -49,7 +71,7 @@ const BookListScreen = ({ navigation }) => {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.bookItem}
-              onPress={() => navigation.navigate("BookDetail", { book: item })}
+              onPress={() => handleBookPress(item)}
               activeOpacity={0.8}
             >
               <Ionicons name="book-outline" size={22} color="#555" />
