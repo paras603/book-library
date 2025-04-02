@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, FlatList } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  FlatList,
+  TextInput,
+} from "react-native";
 import { db } from "../firebaseConfig";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 
 const BorrowerListScreen = () => {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState(""); // State for search query
 
   useEffect(() => {
     const fetchBorrowedBooks = async () => {
       try {
         const booksQuery = query(collection(db, "books"), where("borrower.returned", "==", false));
-
-
         const booksSnapshot = await getDocs(booksQuery);
 
         if (booksSnapshot.empty) {
@@ -25,7 +31,7 @@ const BorrowerListScreen = () => {
             const bookData = bookDoc.data();
 
             let borrowerData = {};
-            borrowerData = bookData.borrower
+            borrowerData = bookData.borrower;
 
             if (bookData.borrowedBy) {
               const borrowerDocRef = doc(db, "users", bookData.borrowedBy);
@@ -52,6 +58,12 @@ const BorrowerListScreen = () => {
     fetchBorrowedBooks();
   }, []);
 
+  // Filter borrowed books based on search query
+  const filteredBorrowedBooks = borrowedBooks.filter((book) =>
+    book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    book.borrower.bookedBy?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return <ActivityIndicator size="large" color="#4A90E2" />;
   }
@@ -59,9 +71,18 @@ const BorrowerListScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Borrowed Books</Text>
-      {borrowedBooks.length > 0 ? (
+
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search by title or borrower..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
+      {filteredBorrowedBooks.length > 0 ? (
         <FlatList
-          data={borrowedBooks}
+          data={filteredBorrowedBooks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <View style={styles.bookContainer}>
@@ -94,6 +115,16 @@ const styles = StyleSheet.create({
     color: "#4A90E2",
     textAlign: "center",
     marginBottom: 15,
+  },
+  searchBar: {
+    height: 40,
+    borderColor: "#cccccc",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 20,
+    fontSize: 16,
+    backgroundColor: "#f9f9f9",
   },
   bookContainer: {
     backgroundColor: "#f0f0f0",
