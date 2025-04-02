@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { collection, doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
@@ -16,6 +17,7 @@ const BookListScreen = ({ navigation }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
+  const [searchQuery, setSearchQuery] = useState(""); // State for search query
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
@@ -52,8 +54,14 @@ const BookListScreen = ({ navigation }) => {
 
   // Function to handle book press
   const handleBookPress = (book) => {
-      navigation.navigate("BookDetail", { book });
+    navigation.navigate("BookDetail", { book });
   };
+
+  // Filter books based on search query
+  const filteredBooks = books.filter((book) =>
+    book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    book.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
@@ -62,11 +70,19 @@ const BookListScreen = ({ navigation }) => {
         Library
       </Text>
 
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search by title or author..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
       {loading ? (
         <ActivityIndicator size="large" color="#4A90E2" />
-      ) : books.length > 0 ? (
+      ) : filteredBooks.length > 0 ? (
         <FlatList
-          data={books}
+          data={filteredBooks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -111,6 +127,16 @@ const styles = StyleSheet.create({
     color: "#4A90E2",
     marginBottom: 15,
     textAlign: "center",
+  },
+  searchBar: {
+    height: 40,
+    borderColor: "#cccccc",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginBottom: 20,
+    fontSize: 16,
+    backgroundColor: "#f9f9f9",
   },
   bookItem: {
     flexDirection: "row",
