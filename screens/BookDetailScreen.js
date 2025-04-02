@@ -73,12 +73,27 @@ const BookDetailScreen = () => {
         Alert.alert("Error", "You must be logged in to borrow books.");
         return;
       }
-
+  
+      const userEmail = user.email;
+  
+      // Query the books collection to check how many books the user has borrowed
+      const borrowedBooksQuery = query(
+        collection(db, "books"),
+        where("borrower.bookedBy", "==", userEmail),
+        where("borrower.returned", "==", false)
+      );
+      const borrowedBooksSnapshot = await getDocs(borrowedBooksQuery);
+  
+      if (borrowedBooksSnapshot.size >= 2) {
+        Alert.alert("Limit reached", "You cannot borrow more than two books at a time.");
+        return;
+      }
+  
       if (!bookData.available) {
         Alert.alert("Unavailable", "This book is already borrowed.");
         return;
       }
-
+  
       const bookRef = doc(db, "books", book.id);
       await updateDoc(bookRef, {
         available: false,
@@ -88,7 +103,7 @@ const BookDetailScreen = () => {
           returned: false,
         },
       });
-
+  
       setBookData({
         ...bookData,
         available: false,
@@ -103,6 +118,7 @@ const BookDetailScreen = () => {
       setLoading(false);
     }
   };
+  
 
   const returnBook = async () => {
     try {
