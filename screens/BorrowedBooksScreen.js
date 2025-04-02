@@ -8,23 +8,32 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons"; // Icons setup
+import { Ionicons } from "@expo/vector-icons";
+import { getAuth } from "firebase/auth"; // Import Firebase Auth
 
 const BorrowedBooksScreen = () => {
   const [borrowedBooks, setBorrowedBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const auth = getAuth(); // Get authentication instance
+  const user = auth.currentUser; // Get logged-in user
 
-  // Fetch borrowed books from Firestore
+  // Fetch borrowed books for the logged-in user
   const fetchBorrowedBooks = async () => {
+    if (!user) {
+      Alert.alert("Error", "You need to be logged in to view borrowed books.");
+      return;
+    }
     try {
       setLoading(true);
-      const querySnapshot = await getDocs(collection(db, "borrowedBooks"));
-      const books = querySnapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((book) => !book.returned);
+      const borrowedBooksQuery = query(
+        collection(db, `borrowers/${user.uid}/borrowedBooks`),
+        where("returned", "==", false)
+      );
+      const querySnapshot = await getDocs(borrowedBooksQuery);
+      const books = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setBorrowedBooks(books);
     } catch (error) {
       console.error("Error fetching borrowed books: ", error);
@@ -37,13 +46,12 @@ const BorrowedBooksScreen = () => {
   // Mark book as returned and update availability
   const returnBook = async (borrowedBook) => {
     try {
-      const borrowedBookRef = doc(db, "borrowedBooks", borrowedBook.id);
+      if (!user) return;
+      const borrowedBookRef = doc(db, `borrowers/${user.uid}/borrowedBooks`, borrowedBook.id);
       await updateDoc(borrowedBookRef, { returned: true });
 
       const booksQuerySnapshot = await getDocs(collection(db, "books"));
-      const bookDoc = booksQuerySnapshot.docs.find(
-        (doc) => doc.data().title === borrowedBook.title
-      );
+      const bookDoc = booksQuerySnapshot.docs.find((doc) => doc.data().title === borrowedBook.title);
 
       if (bookDoc) {
         const bookRef = doc(db, "books", bookDoc.id);

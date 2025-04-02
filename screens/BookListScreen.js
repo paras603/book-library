@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
-import {View,Text,FlatList,TouchableOpacity,StyleSheet,ActivityIndicator} from "react-native";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -8,24 +15,22 @@ const BookListScreen = ({ navigation }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch books from Firestore
+  // Fetch books in real-time using Firestore's onSnapshot
   useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "books"));
-        const booksArray = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setBooks(booksArray);
-      } catch (error) {
-        console.error("Error fetching books: ", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const booksCollection = collection(db, "books");
 
-    fetchBooks();
+    const unsubscribe = onSnapshot(booksCollection, (snapshot) => {
+      const booksArray = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setBooks(booksArray);
+      setLoading(false);
+    });
+
+    // Cleanup listener when component unmounts
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -49,7 +54,12 @@ const BookListScreen = ({ navigation }) => {
             >
               <Ionicons name="book-outline" size={22} color="#555" />
               <View style={styles.bookInfo}>
-                <Text style={styles.title}>{item.title}</Text>
+                <View style={styles.titleContainer}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  {!item.available && (
+                    <Text style={styles.unavailableTag}>Unavailable</Text>
+                  )}
+                </View>
                 <Text style={styles.author}>by {item.author}</Text>
               </View>
               <Ionicons
@@ -97,9 +107,24 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
   },
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   title: {
     fontSize: 18,
     fontWeight: "bold",
+  },
+  unavailableTag: {
+    marginLeft: 10,
+    fontSize: 12,
+    color: "#fff",
+    backgroundColor: "#ff6666",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    fontWeight: "bold",
+    overflow: "hidden",
   },
   author: {
     fontSize: 14,

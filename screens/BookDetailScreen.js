@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import {View,Text,TouchableOpacity,StyleSheet,Alert,ActivityIndicator} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import {doc,updateDoc,getDoc,collection,addDoc,getDocs,query,where} from "firebase/firestore";
+import { doc, updateDoc, getDoc, collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import { auth } from "../firebaseConfig"; // Import auth to get current user
 import { Ionicons } from "@expo/vector-icons";
 
 const BookDetailScreen = () => {
@@ -32,38 +33,44 @@ const BookDetailScreen = () => {
   const borrowBook = async () => {
     try {
       setLoading(true);
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert("Error", "You must be logged in to borrow books.");
+        return;
+      }
+      const userUid = user.uid;
 
       if (!isAvailable) {
         Alert.alert("Unavailable", "This book is already borrowed.");
         return;
       }
 
-      // Check how many books are already borrowed
+      // Check how many books the user has already borrowed
       const borrowedBooksQuery = query(
-        collection(db, "borrowedBooks"),
+        collection(db, "borrowers", userUid, "borrowedBooks"),
         where("returned", "==", false)
       );
       const borrowedBooksSnapshot = await getDocs(borrowedBooksQuery);
       const borrowedBooksCount = borrowedBooksSnapshot.size;
 
-      // User can't borrow more than 3 books
-      if (borrowedBooksCount >= 3) {
-        Alert.alert("Limit reached", "You can only borrow 3 books at a time.");
+      if (borrowedBooksCount >= 2) {
+        Alert.alert("Limit reached", "You can only borrow 2 books at a time.");
       } else {
         // Mark book as unavailable in Firestore
         const bookRef = doc(db, "books", book.id);
         await updateDoc(bookRef, { available: false });
 
-        // Add the book to borrowedBooks collection
-        await addDoc(collection(db, "borrowedBooks"), {
+        // Add the book to the user's borrowedBooks collection
+        await addDoc(collection(db, "borrowers", userUid, "borrowedBooks"), {
           title: book.title,
           author: book.author,
           returned: false,
+          borrowedAt: new Date().toISOString(),
         });
 
         Alert.alert("Success", `${book.title} has been borrowed!`);
         setIsAvailable(false);
-        navigation.navigate("BorrowedBooks");
+        navigation.navigate("Borrowed");
       }
     } catch (error) {
       console.error("Error borrowing book: ", error);
@@ -84,16 +91,11 @@ const BookDetailScreen = () => {
         <ActivityIndicator size="large" color="#4A90E2" />
       ) : (
         <TouchableOpacity
-          style={[
-            styles.button,
-            isAvailable ? styles.buttonAvailable : styles.buttonUnavailable,
-          ]}
+          style={[styles.button, isAvailable ? styles.buttonAvailable : styles.buttonUnavailable]}
           onPress={borrowBook}
           disabled={!isAvailable}
         >
-          <Text style={styles.buttonText}>
-            {isAvailable ? "Borrow this book" : "Unavailable"}
-          </Text>
+          <Text style={styles.buttonText}>{isAvailable ? "Borrow this book" : "Unavailable"}</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -6,6 +6,11 @@ import BookListScreen from "./screens/BookListScreen";
 import BorrowedBooksScreen from "./screens/BorrowedBooksScreen";
 import BookDetailScreen from "./screens/BookDetailScreen";
 import { Ionicons } from "@expo/vector-icons";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebaseConfig";
+import LoginScreen from "./screens/LoginScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import RegisterScreen from "./screens/RegisterScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -41,43 +46,66 @@ function BorrowedBooksStack() {
   );
 }
 
+// Tab Navigator for main app
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === "Home") {
+            iconName = focused ? "book" : "book-outline";
+          } else if (route.name === "Borrowed") {
+            iconName = focused ? "bookmark" : "bookmark-outline";
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: "#4A90E2",
+        tabBarInactiveTintColor: "gray",
+        tabBarStyle: {
+          backgroundColor: "#fff",
+          paddingBottom: 5,
+          height: 60,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "bold",
+        },
+      })}
+    >
+      <Tab.Screen name="Home" component={BookStack} />
+      <Tab.Screen name="Borrowed" component={BorrowedBooksStack} />
+      <Tab.Screen name="Profile" component={ProfileScreen}/>
+    </Tab.Navigator>
+  );
+}
+
+// Main App Component
 export default function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName;
-
-            if (route.name === "Home") {
-              iconName = focused ? "book" : "book-outline";
-            } else if (route.name === "BorrowedBooks") {
-              iconName = focused ? "bookmark" : "bookmark-outline";
-            }
-
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: "#4A90E2",
-          tabBarInactiveTintColor: "gray",
-          tabBarStyle: {
-            backgroundColor: "#fff",
-            paddingBottom: 5,
-            height: 60,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: "bold",
-          },
-        })}
-      >
-        <Tab.Screen name="Home" component={BookStack} />
-        <Tab.Screen
-          name="BorrowedBooks"
-          component={BorrowedBooksStack}
-          options={{ title: "My Borrowed Books" }}
-        />
-      </Tab.Navigator>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        ) : (
+          <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen}/>
+          </>
+        )}
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }
